@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SentimentLens</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700;900&family=DM+Mono:wght@300;400;500&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:        #0c0d0f;
+      --surface:   #13151a;
+      --border:    #222530;
+      --muted:     #3a3f52;
+      --text:      #e8eaf2;
+      --subtext:   #7b82a0;
+      --pos:       #3dffa0;
+      --neu:       #ffd166;
+      --neg:       #ff5f6d;
+      --pos-dim:   #0d3325;
+      --neu-dim:   #332d0e;
+      --neg-dim:   #330d10;
+      --glow-pos:  0 0 30px #3dffa030;
+      --glow-neg:  0 0 30px #ff5f6d30;
+      --glow-neu:  0 0 30px #ffd16630;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      min-height: 100vh;
+      display: grid;
+      place-items: center;
+      padding: 2rem;
+      overflow-x: hidden;
+    }
+
+    /* Ambient background blobs */
+    body::before, body::after {
+      content: '';
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(120px);
+      pointer-events: none;
+      opacity: 0.12;
+      z-index: 0;
+    }
+    body::before {
+      width: 500px; height: 500px;
+      background: var(--pos);
+      top: -150px; left: -150px;
+    }
+    body::after {
+      width: 400px; height: 400px;
+      background: var(--neg);
+      bottom: -100px; right: -100px;
+    }
+
+    .container {
+      position: relative;
+      z-index: 1;
+      width: 100%;
+      max-width: 720px;
+    }
+
+    header {
+      margin-bottom: 2.5rem;
+    }
+
+    .eyebrow {
+      font-size: 0.65rem;
+      letter-spacing: 0.3em;
+      color: var(--subtext);
+      text-transform: uppercase;
+      margin-bottom: 0.5rem;
+    }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2.4rem, 6vw, 3.8rem);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.02em;
+      background: linear-gradient(135deg, var(--text) 30%, var(--subtext));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .tagline {
+      margin-top: 0.75rem;
+      color: var(--subtext);
+      font-size: 0.8rem;
+      font-weight: 300;
+      letter-spacing: 0.04em;
+    }
+
+    /* Input card */
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.75rem;
+      margin-bottom: 1.5rem;
+      transition: border-color 0.3s;
+    }
+    .card:focus-within {
+      border-color: var(--muted);
+    }
+
+    .input-label {
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      color: var(--subtext);
+      text-transform: uppercase;
+      margin-bottom: 0.75rem;
+      display: block;
+    }
+
+    textarea {
+      width: 100%;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--text);
+      font-family: 'DM Mono', monospace;
+      font-size: 0.95rem;
+      font-weight: 300;
+      line-height: 1.7;
+      resize: none;
+      min-height: 130px;
+      caret-color: var(--pos);
+    }
+    textarea::placeholder { color: var(--muted); }
+
+    .card-footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-top: 1.25rem;
+      padding-top: 1.25rem;
+      border-top: 1px solid var(--border);
+    }
+
+    .char-count {
+      font-size: 0.7rem;
+      color: var(--subtext);
+    }
+    .char-count.warn { color: var(--neg); }
+
+    button {
+      cursor: pointer;
+      border: none;
+      outline: none;
+      font-family: 'DM Mono', monospace;
+      font-size: 0.78rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      font-weight: 500;
+      padding: 0.65rem 1.6rem;
+      border-radius: 8px;
+      background: var(--text);
+      color: var(--bg);
+      transition: opacity 0.2s, transform 0.15s, box-shadow 0.3s;
+    }
+    button:hover:not(:disabled) {
+      opacity: 0.88;
+      transform: translateY(-1px);
+      box-shadow: 0 8px 24px #ffffff18;
+    }
+    button:active:not(:disabled) { transform: translateY(0); }
+    button:disabled { opacity: 0.35; cursor: not-allowed; }
+
+    /* Spinner */
+    .spinner {
+      display: inline-block;
+      width: 12px; height: 12px;
+      border: 2px solid var(--bg);
+      border-top-color: transparent;
+      border-radius: 50%;
+      animation: spin 0.7s linear infinite;
+      margin-right: 8px;
+      vertical-align: middle;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Results */
+    .results {
+      display: none;
+      flex-direction: column;
+      gap: 1rem;
+      animation: fadeUp 0.4s ease forwards;
+    }
+    .results.visible { display: flex; }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .verdict-card {
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+      border: 1px solid transparent;
+      display: flex;
+      align-items: center;
+      gap: 1.2rem;
+    }
+    .verdict-card.Positive { background: var(--pos-dim); border-color: var(--pos); box-shadow: var(--glow-pos); }
+    .verdict-card.Negative { background: var(--neg-dim); border-color: var(--neg); box-shadow: var(--glow-neg); }
+    .verdict-card.Neutral  { background: var(--neu-dim); border-color: var(--neu); box-shadow: var(--glow-neu); }
+
+    .verdict-emoji { font-size: 2.4rem; line-height: 1; }
+
+    .verdict-text .label {
+      font-size: 0.6rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--subtext);
+      margin-bottom: 0.2rem;
+    }
+    .verdict-text .value {
+      font-family: 'Playfair Display', serif;
+      font-size: 1.9rem;
+      font-weight: 700;
+    }
+    .verdict-card.Positive .verdict-text .value { color: var(--pos); }
+    .verdict-card.Negative .verdict-text .value { color: var(--neg); }
+    .verdict-card.Neutral  .verdict-text .value { color: var(--neu); }
+
+    /* Score bars */
+    .scores-card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 1.5rem 1.75rem;
+    }
+    .scores-title {
+      font-size: 0.6rem;
+      letter-spacing: 0.25em;
+      text-transform: uppercase;
+      color: var(--subtext);
+      margin-bottom: 1.25rem;
+    }
+
+    .score-row {
+      margin-bottom: 1.1rem;
+    }
+    .score-row:last-child { margin-bottom: 0; }
+
+    .score-meta {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 0.4rem;
+    }
+    .score-name { font-size: 0.78rem; font-weight: 400; }
+    .score-value { font-size: 0.78rem; color: var(--subtext); }
+
+    .bar-track {
+      height: 6px;
+      background: var(--border);
+      border-radius: 99px;
+      overflow: hidden;
+    }
+    .bar-fill {
+      height: 100%;
+      border-radius: 99px;
+      width: 0%;
+      transition: width 0.8s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+    .bar-fill.Positive { background: var(--pos); }
+    .bar-fill.Negative { background: var(--neg); }
+    .bar-fill.Neutral  { background: var(--neu); }
+
+    /* Error */
+    .error-box {
+      display: none;
+      background: var(--neg-dim);
+      border: 1px solid var(--neg);
+      color: var(--neg);
+      border-radius: 12px;
+      padding: 1rem 1.25rem;
+      font-size: 0.8rem;
+    }
+    .error-box.visible { display: block; }
+
+    footer {
+      margin-top: 2rem;
+      text-align: center;
+      font-size: 0.65rem;
+      color: var(--muted);
+      letter-spacing: 0.1em;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <p class="eyebrow">Powered by HuggingFace · RoBERTa</p>
+    <h1>SentimentLens</h1>
+    <p class="tagline">paste any text — get instant emotional tone scores</p>
+  </header>
+
+  <div class="card">
+    <label class="input-label" for="textInput">Your text</label>
+    <textarea id="textInput" placeholder="Type or paste text here… e.g. 'The product exceeded all my expectations!'" maxlength="512"></textarea>
+    <div class="card-footer">
+      <span class="char-count" id="charCount">0 / 512</span>
+      <button id="analyzeBtn" onclick="analyze()">
+        Analyse →
+      </button>
+    </div>
+  </div>
+
+  <div class="error-box" id="errorBox"></div>
+
+  <div class="results" id="results">
+    <div class="verdict-card" id="verdictCard">
+      <div class="verdict-emoji" id="verdictEmoji"></div>
+      <div class="verdict-text">
+        <div class="label">Overall Sentiment</div>
+        <div class="value" id="verdictLabel"></div>
+      </div>
+    </div>
+
+    <div class="scores-card">
+      <div class="scores-title">Score Breakdown</div>
+      <div id="scoreBars"></div>
+    </div>
+  </div>
+
+  <footer>SentimentLens · cardiffnlp/twitter-roberta-base-sentiment-latest</footer>
+</div>
+
+<script>
+  const textarea  = document.getElementById('textInput');
+  const charCount = document.getElementById('charCount');
+  const btn       = document.getElementById('analyzeBtn');
+  const results   = document.getElementById('results');
+  const errorBox  = document.getElementById('errorBox');
+
+  const EMOJI = { Positive: '😊', Neutral: '😐', Negative: '😔' };
+
+  textarea.addEventListener('input', () => {
+    const n = textarea.value.length;
+    charCount.textContent = `${n} / 512`;
+    charCount.classList.toggle('warn', n > 480);
+  });
+
+  // Allow Ctrl+Enter to submit
+  textarea.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) analyze();
+  });
+
+  async function analyze() {
+    const text = textarea.value.trim();
+    if (!text) return;
+
+    // UI: loading state
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner"></span>Analysing…';
+    results.classList.remove('visible');
+    errorBox.classList.remove('visible');
+
+    try {
+      const res  = await fetch('/analyze', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text })
+      });
+      const data = await res.json();
+
+      if (data.error) throw new Error(data.error);
+
+      renderResults(data);
+    } catch (err) {
+      errorBox.textContent = '⚠ ' + (err.message || 'Something went wrong.');
+      errorBox.classList.add('visible');
+    } finally {
+      btn.disabled = false;
+      btn.innerHTML = 'Analyse →';
+    }
+  }
+
+  function renderResults({ scores, top }) {
+    // Verdict card
+    const card  = document.getElementById('verdictCard');
+    card.className = `verdict-card ${top}`;
+    document.getElementById('verdictEmoji').textContent = EMOJI[top] || '🤔';
+    document.getElementById('verdictLabel').textContent = top;
+
+    // Score bars — sorted highest first
+    const order = ['Positive', 'Neutral', 'Negative'];
+    const bars  = document.getElementById('scoreBars');
+    bars.innerHTML = '';
+
+    order.forEach(label => {
+      const score = scores[label] ?? 0;
+      const row = document.createElement('div');
+      row.className = 'score-row';
+      row.innerHTML = `
+        <div class="score-meta">
+          <span class="score-name">${label}</span>
+          <span class="score-value">${score.toFixed(1)}%</span>
+        </div>
+        <div class="bar-track">
+          <div class="bar-fill ${label}" id="bar-${label}"></div>
+        </div>`;
+      bars.appendChild(row);
+    });
+
+    results.classList.add('visible');
+
+    // Animate bars after DOM paint
+    requestAnimationFrame(() => {
+      order.forEach(label => {
+        const el = document.getElementById(`bar-${label}`);
+        if (el) el.style.width = (scores[label] ?? 0) + '%';
+      });
+    });
+  }
+</script>
+</body>
+</html>

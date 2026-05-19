@@ -1,0 +1,14 @@
+services:
+  sentiment-app:
+    build: .
+    ports:
+      - "5000:5000"
+    volumes:
+      # Cache models between restarts so they aren't re-downloaded
+      - hf-cache:/app/.cache/huggingface
+    environment:
+      - TRANSFORMERS_CACHE=/app/.cache/huggingface
+    restart: unless-stopped
+
+volumes:
+  hf-cache:
