@@ -8,28 +8,30 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python deps first (layer cache friendly)
+# Install CPU-only PyTorch first (saves ~2GB vs full CUDA version)
+RUN pip install --no-cache-dir torch==2.6.0+cpu --index-url https://download.pytorch.org/whl/cpu
+
+# Install remaining dependencies
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Pre-download the model into the image so cold-start is instant
-RUN python - <<'EOF'
+RUN python - <<'EOF2'
 from transformers import pipeline
 pipeline(
     "sentiment-analysis",
     model="cardiffnlp/twitter-roberta-base-sentiment-latest",
-    return_all_scores=True
+    top_k=None
 )
-EOF
+EOF2
 
 # Copy application code
 COPY app.py .
 COPY templates/ templates/
 
-# Hugging Face model cache lives here — mount a volume in prod to persist it
-ENV TRANSFORMERS_CACHE=/app/.cache/huggingface
+# Hugging Face model cache
+ENV HF_HOME=/app/.cache/huggingface
 
-EXPOSE 5000
+EXPOSE 10000
 
-# Use gunicorn for production (installed as dep of flask in this setup)
 CMD ["python", "app.py"]
