@@ -7,16 +7,15 @@ app = Flask(__name__)
 print("Loading sentiment model...")
 sentiment_pipeline = pipeline(
     "sentiment-analysis",
-    model="cardiffnlp/twitter-roberta-base-sentiment-latest",
+    model="distilbert-base-uncased-finetuned-sst-2-english",
     top_k=None,
     device=-1  # always CPU — no GPU on Render free tier
 )
 print("Model ready.")
 
 LABEL_MAP = {
-    "LABEL_0": "Negative",
-    "LABEL_1": "Neutral",
-    "LABEL_2": "Positive",
+    "NEGATIVE": "Negative",
+    "POSITIVE": "Positive",
 }
 
 @app.route("/")
